@@ -7,9 +7,13 @@
 		.container {
 			background-color: #99CCFF;
 			border: thick solid #808080;
-			padding: 20px;
+			padding: 0 20px 20px;
 			margin: 20px;
 		}
+
+			.container div {
+				margin-top: 10px;
+			}
 
 		.ws-container {
 			background-color: aquamarine;
@@ -34,7 +38,6 @@
 		.sr-header {
 			font-size: large;
 			font-weight: bold;
-			margin-bottom: 10px;
 		}
 	</style>
 </head>
@@ -42,18 +45,26 @@
 <body>
 	<div class="container">
 		<div class="sr-header">SignalR</div>
-		<input type="text" id="message" />
-		<input type="button" id="sendmessage" value="Send" />
-		<input type="hidden" id="displayname" />
-		<ul id="discussion">
-		</ul>
+		<div class="sr-user">
+			<label for="sr-displayname">Enter Your Name:</label>
+			<input type="text" id="sr-displayname" />
+			<input type="button" id="sr-btn-connect" value="Connect" />
+			<span id="sr-ackmsg"></span>
+		</div>
+		<div class="sr-send-message">
+			<input type="text" id="message" />
+			<input type="button" id="sendmessage" value="Send" />
+			<input type="hidden" id="displayname" />
+			<ul id="discussion">
+			</ul>
+		</div>
 	</div>
 	<div class="ws-container">
 		<div class="ws-header">WebSocket</div>
 		<div class="ws-user">
 			<label for="ws-displayname">Enter Your Name:</label>
 			<input type="text" id="ws-displayname" />
-			<input type="button" id="ws-btnConnect" value="Connect" />
+			<input type="button" id="ws-btn-connect" value="Connect" />
 			<span id="ws-ackmsg"></span>
 		</div>
 		<div class="ws-send-message">
@@ -77,7 +88,7 @@
 			let wsSendMsg = document.getElementById("ws-send-message")
 			let wsSendBtn = document.getElementById("ws-btn-send");
 			let wsUl = document.getElementById("ws-ul");
-			let wsConnectBtn = document.getElementById("ws-btnConnect");
+			let wsConnectBtn = document.getElementById("ws-btn-connect");
 
 			const wsCommand = {
 				Send: 0
@@ -87,26 +98,31 @@
 				if (!webSocket || webSocket.readyState !== WebSocket.OPEN) {
 					wsAckMsg.innerHTML = "Websocket Connecting...";
 					this.value = "Disconnect";
-					webSocket = new WebSocket(wsUrl);
-					console.log("WebSocket:", webSocket);
-					webSocket.onopen = function (event) {
-						wsAckMsg.innerHTML = "Websocket Connected!";
-					}
-					webSocket.onmessage = function (event) {
-						let obj;
-						try {
-							console.log("event.data:", event.data);
-							obj = JSON.parse(event.data);
-							if (obj) wsUl.innerHTML += '<li>' + '<span class="ws-name">' + obj.Name + '</span>' + ': ' + obj.Message + '</li>';
-						} catch {
-							wsUl.innerHTML += '<li>' + event.data + '</li>';
+					try {
+						webSocket = new WebSocket(wsUrl);
+						console.log("WebSocket:", webSocket);
+						webSocket.onopen = function (event) {
+							wsAckMsg.innerHTML = "Websocket Connected!";
 						}
-					}
-					webSocket.onclose = function (event) {
-						wsAckMsg.innerHTML = "WebSocket Closed (code:" + event.code + ", reason:" + event.reason + ")!";
-						wsConnectBtn.value = "Connect";
-						console.log("onclose webSocket:", webSocket);
-						console.log("event:", event);
+						webSocket.onmessage = function (event) {
+							let obj;
+							try {
+								console.log("event.data:", event.data);
+								obj = JSON.parse(event.data);
+								if (obj) wsUl.innerHTML += '<li>' + '<span class="ws-name">' + obj.Name + '</span>' + ': ' + obj.Message + '</li>';
+							} catch {
+								wsUl.innerHTML += '<li>' + event.data + '</li>';
+							}
+						}
+						webSocket.onclose = function (event) {
+							wsAckMsg.innerHTML = "WebSocket Closed (code:" + event.code + ", reason:" + event.reason + ")!";
+							wsConnectBtn.value = "Connect";
+							console.log("onclose webSocket:", webSocket);
+							console.log("event:", event);
+						}
+
+					} catch (error) {
+						console.log("error:", error)
 					}
 				} else {
 					webSocket.close(4999, "User Closed!");
@@ -123,30 +139,42 @@
 			}
 		});
 		$(function () {
-			// Declare a proxy to reference the hub.
-			var chat = $.connection.chatHub;
-			// Create a function that the hub can call to broadcast messages.
-			chat.client.broadcastMessage = function (name, message) {
-				// Html encode display name and message.
-				var encodedName = $('<div />').text(name).html();
-				var encodedMsg = $('<div />').text(message).html();
-				// Add the message to the page.
-				$('#discussion').append('<li><strong>' + encodedName
-					+ '</strong>:&nbsp;&nbsp;' + encodedMsg + '</li>');
-			};
-			// Get the user name and store it to prepend to messages.
-			$('#displayname').val(prompt('Enter your name:', ''));
-			// Set initial focus to message input box.
-			$('#message').focus();
-			// Start the connection.
-			$.connection.hub.start().done(function () {
-				$('#sendmessage').click(function () {
-					// Call the Send method on the hub.
-					chat.server.send($('#displayname').val(), $('#message').val());
-					// Clear text box and reset focus for next comment.
-					$('#message').val('').focus();
-				});
-			});
+			let srConnectBtn = document.getElementById("sr-btn-connect");
+			let srDisplayName = document.getElementById("sr-displayname");
+			let srAckMsg = document.getElementById("sr-ackmsg");
+			srConnectBtn.onclick = function () {
+				if (!srDisplayName.value) {
+					srAckMsg.innerHTML = "Error: Empty Name!"
+				} else {
+					srAckMsg.innerHTML = "SignalR Connecting...";
+					// Declare a proxy to reference the hub.
+					var chat = $.connection.chatHub;
+					// Create a function that the hub can call to broadcast messages.
+					chat.client.broadcastMessage = function (name, message) {
+						// Html encode display name and message.
+						var encodedName = $('<div />').text(name).html();
+						var encodedMsg = $('<div />').text(message).html();
+						// Add the message to the page.
+						$('#discussion').append('<li><strong>' + encodedName
+							+ '</strong>:&nbsp;&nbsp;' + encodedMsg + '</li>');
+					};
+					// Get the user name and store it to prepend to messages.
+					$('#displayname').val(srDisplayName.value);
+					// Set initial focus to message input box.
+					$('#message').focus();
+					// Start the connection.
+					$.connection.hub.start().done(function () {
+						srConnectBtn.disabled = true;
+						srAckMsg.innerHTML = "SignalR Connected!";
+						$('#sendmessage').click(function () {
+							// Call the Send method on the hub.
+							chat.server.send($('#displayname').val(), $('#message').val());
+							// Clear text box and reset focus for next comment.
+							$('#message').val('').focus();
+						});
+					});
+				}
+			}
 		});
 	</script>
 </body>
