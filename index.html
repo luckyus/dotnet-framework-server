@@ -81,7 +81,7 @@
 	<script src="signalr/hubs"></script>
 	<script type="text/javascript">
 		$(function () {
-			let wsUrl = "ws://" + window.location.host + "/api/websocket";
+			let wsUrl = "wss://" + window.location.host + "/api/websocket";
 			let webSocket;
 			let wsDisplayName = document.getElementById("ws-displayname");
 			let wsAckMsg = document.getElementById("ws-ackmsg");

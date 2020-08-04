@@ -19,3 +19,11 @@ WORKDIR /inetpub/wwwroot
 COPY --from=build /app/. ./ 
 # ref: https://www.saotn.org/install-web-websockets-feature-iis-using-powershell/ (200731)
 RUN powershell -Command Add-WindowsFeature Web-WebSockets
+# SHELL ["powershell", "-Command", "Add-WindowsFeature", "Web-WebSockets"]
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+RUN $newCert=New-SelfSignedCertificate -DnsName 'localhost' -CertStoreLocation cert:\LocalMachine\My; \
+  New-WebBinding -Name 'Default Web Site' -Protocol 'https'; \
+  $binding=Get-WebBinding -Name 'Default Web Site' -Protocol 'https'; \
+  $binding.AddSslCertificate($newCert.GetCertHashString(),'my')
