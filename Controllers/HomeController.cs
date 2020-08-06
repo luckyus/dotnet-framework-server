@@ -10,7 +10,7 @@ namespace dotnet_framework_server.Controllers
 	{
 		public ActionResult Index()
 		{
-			return View();
+			return File("~/index.html", "text/html");
 		}
 
 		public ActionResult About()

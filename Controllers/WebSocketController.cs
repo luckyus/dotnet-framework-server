@@ -19,14 +19,11 @@ namespace dotnet_framework_server.Controllers
 		[HttpGet]
 		public HttpResponseMessage GetMessage()
 		{
-			Console.WriteLine("TP#00");
 			// ws://localhost:53262/api/websocket
 			if (HttpContext.Current.IsWebSocketRequest)
 			{
-				Console.WriteLine("TP#01");
 				HttpContext.Current.AcceptWebSocketRequest(async (context) =>
 				{
-					Console.WriteLine("TP#02");
 					WebSocket webSocket = context.WebSocket;
 					WebSocketManager webSocketManager = WebSocketManager.Instance;
 

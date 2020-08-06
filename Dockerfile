@@ -18,7 +18,8 @@ FROM mcr.microsoft.com/dotnet/framework/aspnet:4.7.2-windowsservercore-ltsc2019 
 WORKDIR /inetpub/wwwroot
 COPY --from=build /app/. ./ 
 # ref: https://www.saotn.org/install-web-websockets-feature-iis-using-powershell/ (200731)
-RUN powershell -Command Add-WindowsFeature Web-WebSockets
+# RUN powershell -Command Add-WindowsFeature Web-WebSockets
+RUN powershell -Command Install-WindowsFeature -Name Web-WebSockets
 # SHELL ["powershell", "-Command", "Add-WindowsFeature", "Web-WebSockets"]
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
