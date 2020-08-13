@@ -19,18 +19,23 @@ namespace dotnet_framework_server.Controllers
 		[HttpGet]
 		public HttpResponseMessage GetMessage()
 		{
-			// ws://localhost:53262/api/websocket
-			if (HttpContext.Current.IsWebSocketRequest)
+			// wss://localhost:53262/api/websocket
+			if (!HttpContext.Current.IsWebSocketRequest)
 			{
-				HttpContext.Current.AcceptWebSocketRequest(async (context) =>
+				throw new HttpResponseException(HttpStatusCode.BadRequest);
+			}
+
+			HttpContext.Current.AcceptWebSocketRequest(async (context) =>
+			{
+				WebSocket webSocket = context.WebSocket;
+				WebSocketManager webSocketManager = WebSocketManager.Instance;
+
+				string connectionID = webSocketManager.AddClient(webSocket);
+
+				var receiveBuffer = new ArraySegment<Byte>(new Byte[100]);
+
+				try
 				{
-					WebSocket webSocket = context.WebSocket;
-					WebSocketManager webSocketManager = WebSocketManager.Instance;
-
-					string connectionID = webSocketManager.AddClient(webSocket);
-
-					var receiveBuffer = new ArraySegment<Byte>(new Byte[100]);
-
 					while (webSocket.State == WebSocketState.Open)
 					{
 						string message = string.Empty;
@@ -66,10 +71,15 @@ namespace dotnet_framework_server.Controllers
 								return;
 							}
 						}
-
 					}
-				});
-			}
+				}
+				catch (WebSocketException)
+				{
+					webSocketManager.RemoveClient(connectionID);
+				}
+
+				return;
+			});
 
 			return new HttpResponseMessage(HttpStatusCode.SwitchingProtocols);
 		}
