@@ -57,7 +57,7 @@ namespace dotnet_framework_server.Controllers
 							if (result.MessageType == WebSocketMessageType.Text)
 							{
 								using (var reader = new StreamReader(ms, Encoding.UTF8)) { message = reader.ReadToEnd(); }
-								await webSocketManager.ReceiveFromClient(connectionID, webSocket, message);
+								await webSocketManager.BroadcastJsonMessage(message);
 							}
 							else if (result.MessageType == WebSocketMessageType.Close)
 							{
@@ -73,9 +73,12 @@ namespace dotnet_framework_server.Controllers
 						}
 					}
 				}
-				catch (WebSocketException)
+				catch (WebSocketException ex)
 				{
+					System.Diagnostics.Debug.WriteLine(ex.WebSocketErrorCode);
 					webSocketManager.RemoveClient(connectionID);
+					await webSocketManager.BroadcastMessage("client", "client disconnected!!!");
+
 				}
 
 				return;

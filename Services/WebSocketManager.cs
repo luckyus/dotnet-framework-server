@@ -10,6 +10,7 @@ using System.Web;
 using Microsoft.AspNet.SignalR;
 using Microsoft.AspNet.SignalR.Hubs;
 using System.Text.Json;
+using System.Drawing;
 
 namespace dotnet_framework_server.Services
 {
@@ -74,9 +75,11 @@ namespace dotnet_framework_server.Services
 		{
 			string connectionID = Guid.NewGuid().ToString();
 
-			WebSocketClient webSocketClient = new WebSocketClient();
-			webSocketClient.webSocket = webSocket;
-			webSocketClient.name = connectionID;
+			WebSocketClient webSocketClient = new WebSocketClient
+			{
+				webSocket = webSocket,
+				name = connectionID
+			};
 
 			WebSocketClients.TryAdd(connectionID, webSocketClient);
 
@@ -99,12 +102,23 @@ namespace dotnet_framework_server.Services
 			await webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
 		}
 
-		public async Task ReceiveFromClient(string connectionID, WebSocket webSocket, string message)
+		public async Task BroadcastMessage(string name, string message)
+		{
+			WebSocketItem webSocketItem = new WebSocketItem();
+			webSocketItem.Command = WebSocketCommand.Send;
+			webSocketItem.Name = name;
+			webSocketItem.Message = message;
+
+			string jsonMessage = JsonSerializer.Serialize<WebSocketItem>(webSocketItem);
+			await BroadcastJsonMessage(jsonMessage);
+		}
+
+		public async Task BroadcastJsonMessage(string jsonMessage)
 		{
 			try
 			{
 				var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, };
-				WebSocketItem webSocketItem = JsonSerializer.Deserialize<WebSocketItem>(message, options);
+				WebSocketItem webSocketItem = JsonSerializer.Deserialize<WebSocketItem>(jsonMessage, options);
 				Clients.All.broadcastMessage(webSocketItem.Name, webSocketItem.Message);
 
 				//var hello = WebSocketClients.Select(async x =>
@@ -114,11 +128,12 @@ namespace dotnet_framework_server.Services
 
 				foreach (var client in WebSocketClients)
 				{
-					await client.Value.webSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(message)), WebSocketMessageType.Text, true, CancellationToken.None);
+					await client.Value.webSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonMessage)), WebSocketMessageType.Text, true, CancellationToken.None);
 				}
 			}
-			catch
+			catch(Exception ex)
 			{
+
 
 			}
 		}
