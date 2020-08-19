@@ -53,7 +53,7 @@
 		</div>
 		<div class="sr-send-message">
 			<input type="text" id="message" />
-			<input type="button" id="sendmessage" value="Send" />
+			<input type="button" id="sendmessage" value="Send" disabled="disabled" />
 			<input type="hidden" id="displayname" />
 			<ul id="discussion">
 			</ul>
@@ -141,10 +141,18 @@
 		$(function () {
 			let srConnectBtn = document.getElementById("sr-btn-connect");
 			let srDisplayName = document.getElementById("sr-displayname");
+			let srSendBtn = document.getElementById("sendmessage");
 			let srAckMsg = document.getElementById("sr-ackmsg");
 			srConnectBtn.onclick = function () {
-				if (!srDisplayName.value) {
-					srAckMsg.innerHTML = "Error: Empty Name!"
+				//console.log("$.signalR.connectionState", $.signalR.connectionState);
+				if ($.connection.hub.state === $.signalR.connectionState.connected) {
+					$.connection.hub.stop();
+					srAckMsg.innerHTML = "Disconnected!";
+					srConnectBtn.value = "Connect";
+					console.log("$.connection.hub.state:" + $.connection.hub.state);
+					srSendBtn.disabled = true;
+				} else if (!srDisplayName.value) {
+					srAckMsg.innerHTML = "Error: Empty Name!";
 				} else {
 					srAckMsg.innerHTML = "SignalR Connecting...";
 					// Declare a proxy to reference the hub.
@@ -164,17 +172,22 @@
 					$('#message').focus();
 					// Start the connection.
 					$.connection.hub.start().done(function () {
-						srConnectBtn.disabled = true;
+						console.log("$.connection.hub.state:" + $.connection.hub.state);
 						srAckMsg.innerHTML = "SignalR Connected!";
-						$('#sendmessage').click(function () {
-							// Call the Send method on the hub.
-							chat.server.send($('#displayname').val(), $('#message').val());
-							// Clear text box and reset focus for next comment.
-							$('#message').val('').focus();
-						});
+						srConnectBtn.value = "Disconnect";
+						srSendBtn.disabled = false;
 					});
 				}
 			}
+			$('#sendmessage').click(function () {
+				if ($.connection.hub.state === $.signalR.connectionState.connected) {
+					// Call the Send method on the hub.
+					$.connection.chatHub.server.send($('#displayname').val(), $('#message').val());
+					// Clear text box and reset focus for next comment.
+					$('#message').val('').focus();
+				}
+			});
+
 		});
 	</script>
 </body>

@@ -17,7 +17,7 @@ namespace dotnet_framework_server.Controllers
 	public class WebSocketController : ApiController
 	{
 		[HttpGet]
-		public HttpResponseMessage GetMessage()
+		public HttpResponseMessage Get()
 		{
 			// wss://localhost:53262/api/websocket
 			if (!HttpContext.Current.IsWebSocketRequest)
@@ -68,7 +68,7 @@ namespace dotnet_framework_server.Controllers
 
 								webSocketManager.RemoveClient(connectionID);
 								await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
-								return;
+								// return;
 							}
 						}
 					}

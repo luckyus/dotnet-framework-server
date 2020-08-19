@@ -102,7 +102,7 @@ namespace dotnet_framework_server.Services
 			await webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
 		}
 
-		public async Task BroadcastMessage(string name, string message)
+		public Task BroadcastMessage(string name, string message)
 		{
 			WebSocketItem webSocketItem = new WebSocketItem();
 			webSocketItem.Command = WebSocketCommand.Send;
@@ -110,7 +110,7 @@ namespace dotnet_framework_server.Services
 			webSocketItem.Message = message;
 
 			string jsonMessage = JsonSerializer.Serialize<WebSocketItem>(webSocketItem);
-			await BroadcastJsonMessage(jsonMessage);
+			return BroadcastJsonMessage(jsonMessage);
 		}
 
 		public async Task BroadcastJsonMessage(string jsonMessage)
@@ -131,10 +131,8 @@ namespace dotnet_framework_server.Services
 					await client.Value.webSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonMessage)), WebSocketMessageType.Text, true, CancellationToken.None);
 				}
 			}
-			catch(Exception ex)
+			catch (Exception)
 			{
-
-
 			}
 		}
 	}
