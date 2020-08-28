@@ -9,8 +9,10 @@ using System.Threading.Tasks;
 using System.Web;
 using Microsoft.AspNet.SignalR;
 using Microsoft.AspNet.SignalR.Hubs;
-using System.Text.Json;
 using System.Drawing;
+using System.IO;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace dotnet_framework_server.Services
 {
@@ -29,7 +31,10 @@ namespace dotnet_framework_server.Services
 
 	public enum WebSocketCommand
 	{
-		Send
+		Init = 0,
+		AckMsg = 1,
+		ChatMsg = 2,
+		Error = 99
 	}
 
 	public sealed class WebSocketManager
@@ -47,31 +52,11 @@ namespace dotnet_framework_server.Services
 		private WebSocketManager(IHubConnectionContext<dynamic> clients)
 		{
 			Clients = clients;
-
-			//HeartBeat();
 		}
 
 		public ConcurrentDictionary<string, WebSocketClient> WebSocketClients { get; } = new ConcurrentDictionary<string, WebSocketClient>();
 
-		private void HeartBeat()
-		{
-			Task.Run(async () =>
-			{
-				for (; ; )
-				{
-					foreach (var client in WebSocketClients)
-					{
-						var buffer = new ArraySegment<byte>(Encoding.UTF8.GetBytes(client.Key));
-						await client.Value.webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
-					}
-
-					await Task.Delay(1000);
-				}
-			});
-
-		}
-
-		public string AddClient(WebSocket webSocket)
+		public async Task AddClient(WebSocket webSocket)
 		{
 			string connectionID = Guid.NewGuid().ToString();
 
@@ -83,12 +68,9 @@ namespace dotnet_framework_server.Services
 
 			WebSocketClients.TryAdd(connectionID, webSocketClient);
 
-			Task.Run(async () =>
-			{
-				await SendClientAsync(webSocket, "ID:" + connectionID);
-			});
-
-			return connectionID;
+			var jsonMsg = JsonConvert.SerializeObject(new { command = WebSocketCommand.ChatMsg, name = "iGuardPayroll", message = "ID: " + connectionID });
+			await SendClientAsync(webSocket, jsonMsg);
+			await ReceiveClientAsync(webSocket, connectionID);
 		}
 
 		public void RemoveClient(string connectionID)
@@ -96,35 +78,92 @@ namespace dotnet_framework_server.Services
 			WebSocketClients.TryRemove(connectionID, out _);
 		}
 
-		public async Task SendClientAsync(WebSocket webSocket, string message)
+		private async Task ReceiveClientAsync(WebSocket webSocket, string connectionID)
+		{
+			var receiveBuffer = new ArraySegment<Byte>(new Byte[100]);
+
+			try
+			{
+				while (webSocket.State == WebSocketState.Open)
+				{
+					string message = string.Empty;
+
+					// using stream to read unknown-sized result (200715)
+					using (var ms = new MemoryStream())
+					{
+						WebSocketReceiveResult result;
+
+						do
+						{
+							result = await webSocket.ReceiveAsync(receiveBuffer, CancellationToken.None);
+							ms.Write(receiveBuffer.Array, receiveBuffer.Offset, result.Count);
+
+						} while (!result.EndOfMessage);
+
+						ms.Seek(0, SeekOrigin.Begin);
+
+						if (result.MessageType == WebSocketMessageType.Text)
+						{
+							using (var reader = new StreamReader(ms, Encoding.UTF8)) { message = reader.ReadToEnd(); }
+							await BroadcastJsonMessage(message);
+						}
+						else if (result.MessageType == WebSocketMessageType.Close)
+						{
+							if (result.CloseStatus == WebSocketCloseStatus.EndpointUnavailable)
+							{
+							}
+
+							RemoveClient(connectionID);
+							await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
+							await BroadcastMessage(connectionID, "disconnected!");
+						}
+					}
+				}
+			}
+			catch (WebSocketException ex)
+			{
+				System.Diagnostics.Debug.WriteLine(ex.WebSocketErrorCode);
+				RemoveClient(connectionID);
+				await BroadcastMessage(connectionID, "disconnected!");
+			}
+		}
+
+		public Task SendClientAsync(WebSocket webSocket, string message)
 		{
 			var buffer = new ArraySegment<byte>(Encoding.UTF8.GetBytes(message));
-			await webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
+			return webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
 		}
 
 		public Task BroadcastMessage(string name, string message)
 		{
-			WebSocketItem webSocketItem = new WebSocketItem();
-			webSocketItem.Command = WebSocketCommand.Send;
-			webSocketItem.Name = name;
-			webSocketItem.Message = message;
+			WebSocketItem webSocketItem = new WebSocketItem
+			{
+				Command = WebSocketCommand.ChatMsg,
+				Name = name,
+				Message = message
+			};
 
-			string jsonMessage = JsonSerializer.Serialize<WebSocketItem>(webSocketItem);
-			return BroadcastJsonMessage(jsonMessage);
+			// ref: https://www.newtonsoft.com/json/help/html/NamingStrategyCamelCase.htm (200828)
+			DefaultContractResolver contractResolver = new DefaultContractResolver
+			{
+				NamingStrategy = new CamelCaseNamingStrategy()
+			};
+
+			string jsonStr = JsonConvert.SerializeObject(webSocketItem, new JsonSerializerSettings
+			{
+				ContractResolver = contractResolver,
+				Formatting = Formatting.Indented
+			});
+
+			return BroadcastJsonMessage(jsonStr);
 		}
 
 		public async Task BroadcastJsonMessage(string jsonMessage)
 		{
 			try
 			{
-				var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, };
-				WebSocketItem webSocketItem = JsonSerializer.Deserialize<WebSocketItem>(jsonMessage, options);
+				WebSocketItem webSocketItem = JsonConvert.DeserializeObject<WebSocketItem>(jsonMessage);
 				Clients.All.broadcastMessage(webSocketItem.Name, webSocketItem.Message);
-
-				//var hello = WebSocketClients.Select(async x =>
-				//{
-				//	await x.Value.webSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(message)), WebSocketMessageType.Text, true, CancellationToken.None);
-				//});
 
 				foreach (var client in WebSocketClients)
 				{

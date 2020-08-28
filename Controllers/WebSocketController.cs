@@ -29,59 +29,7 @@ namespace dotnet_framework_server.Controllers
 			{
 				WebSocket webSocket = context.WebSocket;
 				WebSocketManager webSocketManager = WebSocketManager.Instance;
-
-				string connectionID = webSocketManager.AddClient(webSocket);
-
-				var receiveBuffer = new ArraySegment<Byte>(new Byte[100]);
-
-				try
-				{
-					while (webSocket.State == WebSocketState.Open)
-					{
-						string message = string.Empty;
-
-						// using stream to read unknown-sized result (200715)
-						using (var ms = new MemoryStream())
-						{
-							WebSocketReceiveResult result;
-
-							do
-							{
-								result = await webSocket.ReceiveAsync(receiveBuffer, CancellationToken.None);
-								ms.Write(receiveBuffer.Array, receiveBuffer.Offset, result.Count);
-
-							} while (!result.EndOfMessage);
-
-							ms.Seek(0, SeekOrigin.Begin);
-
-							if (result.MessageType == WebSocketMessageType.Text)
-							{
-								using (var reader = new StreamReader(ms, Encoding.UTF8)) { message = reader.ReadToEnd(); }
-								await webSocketManager.BroadcastJsonMessage(message);
-							}
-							else if (result.MessageType == WebSocketMessageType.Close)
-							{
-								if (result.CloseStatus == WebSocketCloseStatus.EndpointUnavailable)
-								{
-									// e.g., browser closed
-								}
-
-								webSocketManager.RemoveClient(connectionID);
-								await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
-								// return;
-							}
-						}
-					}
-				}
-				catch (WebSocketException ex)
-				{
-					System.Diagnostics.Debug.WriteLine(ex.WebSocketErrorCode);
-					webSocketManager.RemoveClient(connectionID);
-					await webSocketManager.BroadcastMessage("client", "client disconnected!!!");
-
-				}
-
-				return;
+				await webSocketManager.AddClient(webSocket);
 			});
 
 			return new HttpResponseMessage(HttpStatusCode.SwitchingProtocols);

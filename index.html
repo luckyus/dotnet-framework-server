@@ -91,7 +91,10 @@
 			let wsConnectBtn = document.getElementById("ws-btn-connect");
 
 			const wsCommand = {
-				Send: 0
+				init: 0,
+				ackMsg: 1,
+				chatMsg: 2,
+				error: 99
 			}
 
 			wsConnectBtn.onclick = function () {
@@ -100,7 +103,6 @@
 					this.value = "Disconnect";
 					try {
 						webSocket = new WebSocket(wsUrl);
-						console.log("WebSocket:", webSocket);
 						webSocket.onopen = function (event) {
 							wsAckMsg.innerHTML = "Websocket Connected!";
 						}
@@ -109,7 +111,9 @@
 							try {
 								console.log("event.data:", event.data);
 								obj = JSON.parse(event.data);
-								if (obj) wsUl.innerHTML += '<li>' + '<span class="ws-name">' + obj.Name + '</span>' + ': ' + obj.Message + '</li>';
+								if (obj && obj.command === wsCommand.chatMsg) {
+									wsUl.innerHTML += '<li>' + '<span class="ws-name">' + obj.name + '</span>' + ': ' + obj.message + '</li>';
+								}
 							} catch {
 								wsUl.innerHTML += '<li>' + event.data + '</li>';
 							}
@@ -130,9 +134,9 @@
 			}
 			wsSendBtn.onclick = function () {
 				let sendObj = {
-					Command: wsCommand.Send,
-					Name: wsDisplayName.value,
-					Message: wsSendMsg.value
+					command: wsCommand.chatMsg,
+					name: wsDisplayName.value,
+					message: wsSendMsg.value
 				}
 				let jsonSendObj = JSON.stringify(sendObj);
 				webSocket.send(jsonSendObj);
